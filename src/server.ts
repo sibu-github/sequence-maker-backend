@@ -3,46 +3,64 @@ import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import { DEFAULT_PORT, PUBLISH_INTERVAL, WEB_SOCKET_TOPIC } from './constants';
-import QuestionSet from './questions';
+import GameQuestion from './questions';
+import { LogLevel, logMessage } from './logger';
 
 const PORT = process.env.PORT || DEFAULT_PORT;
 
+// Initialize http server
 const app = express();
 const server = http.createServer(app);
 app.get('/ping', (req, res) => {
   res.send('pong!');
 });
 server.listen(PORT, () => {
-  console.log('server is listening on port:', PORT);
+  logMessage(LogLevel.INFO, 'server is listening on port:', PORT);
 });
 
+// initialize the web socket server
 const socketServer = new Server(server, {
   cors: {
     origin: '*',
   },
 });
 
+// add event listener on connection and disconnect
 socketServer.on('connection', (client) => {
-  console.log('client connected:', client.id);
+  logMessage(LogLevel.INFO, 'client connected:', client.id);
 
   client.on('disconnect', () => {
-    console.log('client disconnected:', client.id);
+    logMessage(LogLevel.INFO, 'client disconnected:', client.id);
   });
 });
 
-async function initializeApp() {
+// wait for publish interval cycle
+async function waitForCycle() {
+  return new Promise((resolve) => setTimeout(resolve, PUBLISH_INTERVAL));
+}
+
+async function startGame() {
   try {
-    const questionSet = new QuestionSet();
-    await questionSet.load();
-    setInterval(() => {
-      let question = questionSet.next();
-      console.log('publishing question', question.uid);
-      socketServer.emit(WEB_SOCKET_TOPIC, question);
-    }, PUBLISH_INTERVAL);
+    const gq = new GameQuestion();
+    await gq.loadNext();
+    while (true) {
+      try {
+        // publish question
+        logMessage(LogLevel.INFO, '------------------------');
+        let qs = gq.next();
+        if (qs) {
+          logMessage(LogLevel.INFO, 'emitting question: ', qs.questionId, qs.question);
+          socketServer.emit(WEB_SOCKET_TOPIC, qs);
+        }
+        await Promise.allSettled([gq.publish(), gq.loadNext(), waitForCycle()]);
+      } catch (err) {
+        logMessage(LogLevel.ERROR, 'An error occurred in the game loop.', err);
+      }
+    }
   } catch (err) {
-    console.error(err);
+    logMessage(LogLevel.ERROR, err);
     process.exit(1);
   }
 }
 
-initializeApp();
+startGame();

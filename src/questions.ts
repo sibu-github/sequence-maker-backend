@@ -1,65 +1,95 @@
-import { COLL_QUESTIONS, DB_NAME } from './constants';
+import { COLL_QUESTIONS, COLL_QUES_PUBLISH_LOG, DB_NAME, EXCLUDE_LIST_MAX_LEN } from './constants';
 import database from './database';
+import { LogLevel, logMessage } from './logger';
 
-type GameQuestion = {
-  uid: number;
-  result: number;
+type Question = {
+  questionId: number;
   solution: string;
   question: string;
-  options: number[];
+  options: Option[];
   isActive: boolean;
 };
 
-class QuestionSet {
-  allQuestions: GameQuestion[];
-  currIdx: number;
+type Option = {
+  optionId: number;
+  optionText: string;
+  isCorrect: boolean;
+};
+
+class GameQuestion {
+  nextQuestion: Question;
+  excludeList: Question[];
   constructor() {
-    this.allQuestions = [];
-    this.currIdx = -1;
+    this.nextQuestion = null;
+    this.excludeList = [];
   }
 
   next() {
-    if (this.allQuestions.length === 0) {
+    if (!this.nextQuestion) {
+      logMessage(
+        LogLevel.ERROR,
+        'nextQuestion not found. `loadNext` should have been called first!'
+      );
       return;
     }
-    const idx = this.currIdx + 1;
-    if (idx < this.allQuestions.length) {
-      this.currIdx = idx;
-      return this.allQuestions[idx];
-    } else {
-      this.currIdx = 0;
-      return this.allQuestions[0];
+    return this.nextQuestion;
+  }
+
+  addToExcludeList(question: Question) {
+    while (EXCLUDE_LIST_MAX_LEN > 0 && this.excludeList.length >= EXCLUDE_LIST_MAX_LEN) {
+      this.excludeList.shift();
+    }
+    this.excludeList.push(question);
+  }
+
+  async loadNext() {
+    try {
+      logMessage(LogLevel.INFO, 'loading next questions');
+      const client = await database.getClient();
+      const collection = client.db(DB_NAME).collection(COLL_QUESTIONS);
+      const excludeList = this.excludeList.map((q) => q.questionId);
+      const pipeline = [
+        { $match: { isActive: true, questionId: { $nin: excludeList } } },
+        { $sample: { size: 1 } },
+        {
+          $project: {
+            _id: 0,
+            questionId: 1,
+            solution: 1,
+            question: 1,
+            options: 1,
+            isActive: 1,
+          },
+        },
+      ];
+      const result = await collection.aggregate<Question>(pipeline).toArray();
+      if (result.length === 0) {
+        logMessage(LogLevel.ERROR, 'Error: not able to load next question');
+        return;
+      }
+      const nextQuestion = result[0];
+      this.addToExcludeList(nextQuestion);
+      this.nextQuestion = nextQuestion;
+    } catch (err) {
+      logMessage(LogLevel.ERROR, err);
     }
   }
 
-  async load() {
-    console.log('loading all questions');
-    const client = await database.getClient();
-    const collection = client.db(DB_NAME).collection(COLL_QUESTIONS);
-    const totalCount = await collection.countDocuments({});
-    let skip = 0;
-    while (skip < totalCount) {
-      const result = await collection
-        .find({})
-        .sort({ uid: 1 })
-        .skip(skip)
-        .limit(1000)
-        .project({ _id: 0 })
-        .toArray();
-      result.forEach((r) => {
-        this.allQuestions.push({
-          uid: r.uid,
-          result: r.result,
-          solution: r.solution,
-          question: r.question,
-          options: r.options,
-          isActive: r.isActive,
-        });
-      });
-      skip += 1000;
+  async publish() {
+    try {
+      const client = await database.getClient();
+      const collection = client.db(DB_NAME).collection(COLL_QUES_PUBLISH_LOG);
+      const doc = {
+        questionId: this.nextQuestion.questionId,
+        question: this.nextQuestion.question,
+        timestamp: new Date().getTime(),
+      };
+      logMessage(LogLevel.INFO, 'saving question to publish log', this.nextQuestion.questionId);
+      await collection.insertOne(doc);
+    } catch (err) {
+      logMessage(LogLevel.ERROR, err);
     }
-    console.log('all question loaded', this.allQuestions.length);
   }
 }
 
-export default QuestionSet;
+export default GameQuestion;
