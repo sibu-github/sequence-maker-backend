@@ -27,6 +27,7 @@ const socketServer = new Server(server, {
 
 socketServer.use((socket, next) => {
   if (socket.handshake.query && socket.handshake.query.token === '1234') {
+    logMessage(LogLevel.INFO, 'Received handshake query token', socket.handshake.query.token);
     next();
   } else {
     next(new Error('Authentication error'));
