@@ -3,8 +3,8 @@ import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
 import { DEFAULT_PORT, PUBLISH_INTERVAL, WEB_SOCKET_TOPIC } from './constants';
-import GameQuestion from './questions';
 import { LogLevel, logMessage } from './logger';
+import Game from './game';
 
 const PORT = process.env.PORT || DEFAULT_PORT;
 
@@ -25,6 +25,14 @@ const socketServer = new Server(server, {
   },
 });
 
+socketServer.use((socket, next) => {
+  if (socket.handshake.query && socket.handshake.query.token === '1234') {
+    next();
+  } else {
+    next(new Error('Authentication error'));
+  }
+});
+
 // add event listener on connection and disconnect
 socketServer.on('connection', (client) => {
   logMessage(LogLevel.INFO, 'client connected:', client.id);
@@ -41,18 +49,18 @@ async function waitForCycle() {
 
 async function startGame() {
   try {
-    const gq = new GameQuestion();
-    await gq.loadNext();
+    const game = new Game();
+    await game.loadNext();
     while (true) {
       try {
         // publish question
         logMessage(LogLevel.INFO, '------------------------');
-        let qs = gq.next();
+        let qs = await game.publish();
         if (qs) {
           logMessage(LogLevel.INFO, 'emitting question: ', qs.questionId, qs.question);
           socketServer.emit(WEB_SOCKET_TOPIC, qs);
         }
-        await Promise.allSettled([gq.publish(), gq.loadNext(), waitForCycle()]);
+        await Promise.allSettled([game.loadNext(), waitForCycle()]);
       } catch (err) {
         logMessage(LogLevel.ERROR, 'An error occurred in the game loop.', err);
       }
