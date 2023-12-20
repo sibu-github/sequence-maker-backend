@@ -7,6 +7,7 @@ const EXCLUDE_LIST_MAX_LEN = 100;
 
 const COLL_QUESTIONS = 'questions';
 const COLL_QUES_PUBLISH_LOG = 'questionPublishLog';
+const COLL_ACTIVE_PLAYERS = 'activePlayers';
 
 export {
   DEFAULT_PORT,
@@ -14,6 +15,7 @@ export {
   DB_NAME,
   COLL_QUESTIONS,
   COLL_QUES_PUBLISH_LOG,
+  COLL_ACTIVE_PLAYERS,
   PUBLISH_INTERVAL,
   EXCLUDE_LIST_MAX_LEN,
   USER_VALID_TILL,

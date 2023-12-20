@@ -1,5 +1,5 @@
 import { MongoClient } from 'mongodb';
-import { COLL_QUESTIONS, COLL_QUES_PUBLISH_LOG, DB_NAME } from './constants';
+import { COLL_ACTIVE_PLAYERS, COLL_QUESTIONS, COLL_QUES_PUBLISH_LOG, DB_NAME } from './constants';
 
 const QUESTION_PROJECT_LIST = {
   _id: 0,
@@ -41,7 +41,7 @@ class Database {
     return result.length > 0 ? result[0] : null;
   }
 
-  async saveToPublishLog(questionId: number, question: string, validTill: number) {
+  async saveToPublishLog(questionId: number, question: string, validTill: number): Promise<void> {
     const client = await this.getClient();
     const collection = client.db(DB_NAME).collection(COLL_QUES_PUBLISH_LOG);
     const doc = {
@@ -51,6 +51,13 @@ class Database {
       timestamp: new Date().getTime(),
     };
     await collection.insertOne(doc);
+  }
+
+  async checkGameToken(gameToken: string): Promise<boolean> {
+    const client = await this.getClient();
+    const collection = client.db(DB_NAME).collection(COLL_ACTIVE_PLAYERS);
+    const result = await collection.findOne({ gameToken });
+    return !!result;
   }
 }
 const database = new Database();
