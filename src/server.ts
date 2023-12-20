@@ -2,10 +2,10 @@ import 'dotenv/config';
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
-import { DEFAULT_PORT, PUBLISH_INTERVAL, WEB_SOCKET_TOPIC } from './constants';
+import { ANSWER_TOPIC, DEFAULT_PORT, PUBLISH_INTERVAL, WEB_SOCKET_TOPIC } from './constants';
 import { LogLevel, logMessage } from './logger';
 import Game from './game';
-import database from './database';
+import database, { CheckAnswerRequest, CheckAnswerResponse } from './database';
 
 const PORT = process.env.PORT || DEFAULT_PORT;
 
@@ -54,6 +54,40 @@ socketServer.on('connection', (client) => {
   client.on('disconnect', () => {
     logMessage(LogLevel.INFO, 'client disconnected:', client.id);
   });
+
+  async function answerHandler(
+    data: CheckAnswerRequest,
+    callback: (res: CheckAnswerResponse) => void
+  ) {
+    logMessage(LogLevel.INFO, 'Received answer:', client.id, data);
+    try {
+      if (typeof data.gameToken !== 'string' || !data.gameToken) {
+        throw new Error('gameToken should be string');
+      }
+      if (typeof data.questionId !== 'number' || !data.questionId) {
+        throw new Error('questionId should be number');
+      }
+      if (typeof data.selectedOptionId !== 'number' || !data.selectedOptionId) {
+        throw new Error('selectedOptionId should be number');
+      }
+      const response = await database.checkAnswer(data);
+      logMessage(LogLevel.INFO, 'checkAnser response: ', response);
+      if (callback) {
+        callback(response);
+      }
+      if (response.invalidToken || response.insufficientBalance) {
+        logMessage(LogLevel.INFO, 'Disconnecting...', response);
+        client.disconnect();
+      }
+    } catch (err) {
+      logMessage(LogLevel.ERROR, err);
+      if (callback) {
+        callback(null);
+      }
+    }
+  }
+
+  client.on(ANSWER_TOPIC, answerHandler);
 });
 
 // wait for publish interval cycle
@@ -63,13 +97,13 @@ async function waitForCycle() {
 
 async function startGame() {
   try {
-    const game = new Game();
+    const game = Game.getInstance();
     await game.loadNext();
     while (true) {
       try {
         // publish question
         logMessage(LogLevel.INFO, '------------------------');
-        let qs = await game.publish();
+        let qs = game.publish();
         if (qs) {
           logMessage(LogLevel.INFO, 'emitting question: ', qs.questionId, qs.question);
           socketServer.emit(WEB_SOCKET_TOPIC, qs);

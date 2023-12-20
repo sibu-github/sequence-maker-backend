@@ -1,22 +1,15 @@
-const DEFAULT_PORT = 8080;
-const WEB_SOCKET_TOPIC = 'GAME_QUESTION';
-const DB_NAME = 'sequenceMaker';
-const PUBLISH_INTERVAL = 20 * 1000;
-const USER_VALID_TILL = 15 * 1000;
-const EXCLUDE_LIST_MAX_LEN = 100;
+export const DEFAULT_PORT = 8080;
+export const WEB_SOCKET_TOPIC = 'GAME_QUESTION';
+export const ANSWER_TOPIC = 'GAME_ANSWER';
+export const DB_NAME = 'sequenceMaker';
+export const PUBLISH_INTERVAL = 20 * 1000;
+export const EXCLUDE_LIST_MAX_LEN = 100;
+export const BALANCE_DECIMAL_PRECISION = 2;
+export const WALLET_TRANSACTIONE_TYPE_GAME_WIN = 'GAME_WIN';
+export const WALLET_TRANSACTION_STATUS_SUCCESS = 'SUCCESS';
 
-const COLL_QUESTIONS = 'questions';
-const COLL_QUES_PUBLISH_LOG = 'questionPublishLog';
-const COLL_ACTIVE_PLAYERS = 'activePlayers';
-
-export {
-  DEFAULT_PORT,
-  WEB_SOCKET_TOPIC,
-  DB_NAME,
-  COLL_QUESTIONS,
-  COLL_QUES_PUBLISH_LOG,
-  COLL_ACTIVE_PLAYERS,
-  PUBLISH_INTERVAL,
-  EXCLUDE_LIST_MAX_LEN,
-  USER_VALID_TILL,
-};
+export const COLL_QUESTIONS = 'questions';
+export const COLL_QUES_PUBLISH_LOG = 'questionPublishLog';
+export const COLL_ACTIVE_PLAYERS = 'activePlayers';
+export const COLL_WALLETS = 'wallets';
+export const COLL_WALLET_TRANSACTIONS = 'walletTransactions';
